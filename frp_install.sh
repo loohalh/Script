@@ -1,6 +1,33 @@
 #!/bin/bash
 
+# 一键安装 frp 服务端/客户端
+# 服务端面板端口默认为 6065
+
+
 set -e
+
+REMOTE_BIND_IP=""
+REMOTE_BIND_PORT=""
+
+SSH_LOCAL_SSH_PORT=22  # 客户端默认 ssh 端口
+SSH_REMOTE_PORT=""
+
+# 必要设置
+if [[ -z "$REMOTE_BIND_IP" ]]; then
+  echo "❌ 错误：REMOTE_BIND_IP 未设置，请设置服务端 IP。"
+  exit 1
+fi
+
+if [[ -z "$REMOTE_BIND_PORT" ]]; then
+  echo "❌ 错误：REMOTE_BIND_PORT 未设置，请设置服务端端口。"
+  exit 1
+fi
+
+if [[ -z "$SSH_REMOTE_PORT" ]]; then
+  echo "❌ 错误：SSH_REMOTE_PORT 未设置，请设置 SSH 穿透后远程端口。"
+  exit 1
+fi
+
 
 # 默认版本
 FRP_VERSION=$(curl -s https://api.github.com/repos/fatedier/frp/releases/latest | grep tag_name | cut -d '"' -f 4)
@@ -9,6 +36,8 @@ INSTALL_DIR="/usr/local/frp"
 SERVICE_NAME=""
 BINARY_NAME=""
 CONF_FILE=""
+
+
 
 # 颜色输出函数
 info() { echo -e "\033[1;32m[INFO]\033[0m $1"; }
@@ -56,7 +85,7 @@ rm -rf frp_${FRP_VERSION#v}_linux_${ARCH}
 if [ "$MODE" == "frps" ]; then
   sudo tee $INSTALL_DIR/frps.ini > /dev/null <<EOF
 [common]
-bind_port = 6000
+bind_port = ${REMOTE_BIND_PORT}
 dashboard_port = 6050
 dashboard_user = admin
 dashboard_pwd = admin
@@ -64,13 +93,13 @@ EOF
 else
   sudo tee $INSTALL_DIR/frpc.ini > /dev/null <<EOF
 [common]
-server_addr = xxx.xxx.xxx
-server_port = 6000
+server_addr = ${REMOTE_BIND_IP}
+server_port = ${REMOTE_BIND_PORT}
 
 [ssh]
 type = tcp
-local_port = 22
-remote_port = 6022
+local_port = ${SSH_LOCAL_SSH_PORT}
+remote_port = ${SSH_REMOTE_PORT}
 EOF
 fi
 
@@ -95,6 +124,11 @@ sudo systemctl daemon-reload
 sudo systemctl enable ${SERVICE_NAME}
 sudo systemctl restart ${SERVICE_NAME}
 
+if [ "$MODE" == "frps" ]; then
+info "服务端面板地址：$REMOTE_BIND_IP:6065"
+fi
+
 info "🎉 FRP [$MODE] 安装完成并已启动"
 info "👉 配置文件位置：$INSTALL_DIR/$CONF_FILE"
 info "👉 修改配置后使用：sudo systemctl restart $SERVICE_NAME"
+
